@@ -4,22 +4,22 @@ VAR
 	a : INT;
 	b : SINT;
 	c : LDINT;
-END_VAR;
+END_VAR
 
 FOR a := 4 TO 12 BY 2 DO
-	a := a * 2;
-END_FOR;
+	a := a ** 2;
+END_FOR
 
 b := 2;
 WHILE b < 25 DO
 	b := b * 5 + 2;
-END_WHILE;
+END_WHILE
 
 c := 0;
 REPEAT
 	c := (c + 1) * 2;
-	UNTIL c >= 10;
-END_REPEAT;
+UNTIL c >= 10
+END_REPEAT
 
 IF a + b > c THEN
 	c := a;

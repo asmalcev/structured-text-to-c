@@ -6,10 +6,13 @@ BUILD_DIR = build
 
 all: $(BUILD_DIR)/syntaxer
 
+$(BUILD_DIR)/parser.tab.c $(BUILD_DIR)/parser.tab.h:
+	bison -t -v -d -b $(BUILD_DIR)/parser $(SRC_DIR)/parser.y
+
 $(BUILD_DIR)/lex.yy.c: $(SRC_DIR)/scanner.l
 	flex -o $(BUILD_DIR)/lex.yy.c $(SRC_DIR)/scanner.l
 
-$(BUILD_DIR)/syntaxer: $(BUILD_DIR)/lex.yy.c
+$(BUILD_DIR)/syntaxer: $(BUILD_DIR)/parser.tab.c $(BUILD_DIR)/lex.yy.c
 	$(GCC) $(BUILD_FLAGS) -o $(BUILD_DIR)/syntaxer $^
 
 clean:
