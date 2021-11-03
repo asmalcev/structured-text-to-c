@@ -4,13 +4,15 @@
 ---      includes     ---
 ************************/
 
-#include <queue>
-#include <stack>
+#include <vector>
+#include <sstream>
 
 #include <stdio.h>
 #include <string.h>
 
 #include "../src/config.hpp"
+#include "../src/statements/statements.hpp"
+#include "../src/translator/translator.hpp"
 
 /************************
 ---       bison       ---
@@ -35,17 +37,16 @@ void yyerror(const char * s);
 ************************/
 FILE * parser_output;
 
-typedef long unsigned size_t;
+bool is_math_in_use = false;
 
-struct declaration {
-	char id[CVAL_LENGTH];
-	const char * type;
-};
+unsigned int nesting = 0;
 
-std::stack<declaration> declarations;
+std::vector<declaration> declarations;
+std::vector<statement *> statements;
+std::stringstream expression;
 
 const char * transfer_st_type_to_c(char * type);
-void output_declarations();
+void fix_pow();
 
 %}
 
@@ -77,11 +78,21 @@ stmts:
 
 stmt:
 |	assignment_stmt
-|	expression
+|	expression { expression.str(""); }
 ;
 
 assignment_stmt:
-	ID ASSIGNMENT expression
+	ID ASSIGNMENT {
+		assignment_statement * p_as = new assignment_statement(nesting);
+		p_as->id = $1;
+
+		statements.push_back(p_as);
+	} expression {
+		assignment_statement * p_as = (assignment_statement *) statements.back();
+
+		p_as->expression = expression.str();
+		expression.str("");
+	}
 ;
 
 declarations:
@@ -89,62 +100,119 @@ declarations:
 ;
 
 declaration:
-|	ID COLON TYPE SEMICOLON declaration {
+|	ID COLON TYPE SEMICOLON {
 	struct declaration tmp;
 	strncpy(tmp.id, $1, CVAL_LENGTH);
 	tmp.type = transfer_st_type_to_c($3);
 
-	declarations.push(tmp);
-}
-;
+	declarations.push_back(tmp);
+} declaration;
 
 condition:
-	IF expression THEN stmts else_of_condition END_IF
+	IF {
+		if_statement * p_is = new if_statement(nesting++);
+		statements.push_back(p_is);
+	} expression {
+		if_statement * p_is = (if_statement *) statements.back();
+
+		p_is->condition = expression.str();
+		expression.str("");
+	} THEN stmts else_of_condition END_IF {
+		nesting--;
+	}
 ;
 
 else_of_condition:
-|	ELSE stmts
+|	ELSE {
+		else_statement * p_es = new else_statement(nesting - 1);
+		statements.push_back(p_es);
+	} stmts {
+		nesting--;
+	}
 ;
 
 for:
-	FOR assignment_stmt TO expression BY expression DO stmts END_FOR
+	FOR {
+		for_statement * p_fs = new for_statement(nesting++);
+		statements.push_back(p_fs);
+	} assignment_stmt TO expression {
+		auto iterator = statements.rbegin();
+		iterator++;
+		for_statement * p_fs = (for_statement *) (*iterator);
+
+		p_fs->to = expression.str();
+		expression.str("");
+	} BY expression {
+		auto iterator = statements.rbegin();
+		iterator++;
+		for_statement * p_fs = (for_statement *) (*iterator);
+
+		p_fs->by = expression.str();
+		expression.str("");
+	} DO stmts END_FOR {
+		nesting--;
+	}
 ;
 
 while:
-	WHILE expression DO stmts END_WHILE
+	WHILE {
+		while_statement * p_ws = new while_statement(nesting++);
+		statements.push_back(p_ws);
+	} expression {
+		while_statement * p_ws = (while_statement *) statements.back();
+
+		p_ws->condition = expression.str();
+		expression.str("");
+	} DO stmts END_WHILE {
+		nesting--;
+	}
 ;
 
 repeat:
-	REPEAT stmts UNTIL expression END_REPEAT
+	REPEAT {
+		repeat_statement * p_rs = new repeat_statement(nesting++);
+		statements.push_back(p_rs);
+	} stmts UNTIL expression {
+		for (auto p_s = statements.rbegin(); p_s != statements.rend(); p_s++) {
+			if ((*p_s)->type == statement_type::_repeat) {
+				( (repeat_statement *) (*p_s) )->condition = expression.str();
+				expression.str("");
+				break;
+			}
+		}
+	} END_REPEAT {
+		nesting--;
+	}
 ;
 
 expression:
-	NUMBER
-| ID
+	ID { expression << $1 << " "; }
+|	NUMBER { expression << $1 << " "; }
+|	BR_OPEN { expression << "( "; } expression BR_CLOSE { expression << ") "; }
+|	expression POW { expression << "** "; } expression {
+	fix_pow();
+}
 |	expression operator expression
-|	BR_OPEN expression BR_CLOSE
 ;
 
 operator:
-	PLUS
-|	MINUS
-|	MULTIPLY
-|	DIVIDE
-|	MOD
-|	LESS
-|	MORE
-|	nEQUALS
-|	EQUALS
-|	LESSoE
-|	MOREoE
-|	POW
+	MOD      { expression << "% ";  }
+|	PLUS     { expression << "+ ";  }
+|	LESS     { expression << "< ";  }
+|	MORE     { expression << "> ";  }
+|	MINUS    { expression << "- ";  }
+|	DIVIDE   { expression << "/ ";  }
+|	EQUALS   { expression << "== "; }
+|	LESSoE   { expression << "<= "; }
+|	MOREoE   { expression << ">= "; }
+|	nEQUALS  { expression << "!= "; }
+|	MULTIPLY { expression << "* ";  }
 ;
 
 %%
 
 int main(int argc, char *argv[]) {
 	yyin = fopen("examples/ex0", "r");
-	parser_output = stdout;
 
 	yyparse();
 
@@ -152,7 +220,7 @@ int main(int argc, char *argv[]) {
 		printf("\n");
 	#endif
 
-	output_declarations();
+	translator("output.cpp", declarations, statements, is_math_in_use);
 
 	fclose(yyin);
 }
@@ -160,15 +228,6 @@ int main(int argc, char *argv[]) {
 void yyerror(const char* s) {
 	fprintf(stderr, "Bison error: %s\n", s);
 	exit(1);
-}
-
-void output_declarations() {
-	struct declaration tmp;
-	while ( !declarations.empty() ) {
-		tmp = declarations.top();
-		declarations.pop();
-		fprintf(parser_output, "%s %s\n", tmp.type, tmp.id);
-	}
 }
 
 const char * transfer_st_type_to_c(char * type) {
@@ -189,4 +248,70 @@ const char * transfer_st_type_to_c(char * type) {
 	} else if ( !strncmp(type, "ULINT", CVAL_LENGTH) ) {
 		return "unsigned long long int";
 	}
+}
+
+void fix_pow() {
+	if ( !is_math_in_use ) is_math_in_use = true;
+
+	std::string expr = expression.str();
+	std::size_t pos = expr.find("**");
+
+	std::string part1 = expr.substr(0, pos - 1);
+	std::string part2 = expr.substr(pos + 3);
+
+	std::string word1;
+	std::size_t word_length = 0;
+	std::size_t br_depth = 0;
+
+	if (part1[pos - 2] == ')') {
+		for (
+			auto it = part1.rbegin();
+			( br_depth != 0 && it != part1.rend() ) || word_length == 0;
+			it++
+		) {
+			word_length++;
+
+			if (*it == ')') {
+				br_depth++;
+			} else if (*it == '(') {
+				br_depth--;
+			}
+		}
+
+		word1 = part1.substr( pos - 1 - word_length );
+	} else {
+		word1 = part1.substr( part1.rfind(" ") + 1 );
+	}
+
+	std::string word2;
+	word_length = 0;
+	br_depth = 0;
+
+	if (part2[0] == '(') {
+		for (
+			auto it = part2.begin();
+			( br_depth != 0 && it != part2.end() ) || word_length == 0;
+			it++
+		) {
+			word_length++;
+
+			if (*it == ')') {
+				br_depth--;
+			} else if (*it == '(') {
+				br_depth++;
+			}
+		}
+
+		word2 = part2.substr( 0, word_length );
+	} else {
+		word2 = part2.substr( 0, part2.find(" ") );
+	}
+
+	expression.str(
+		expr.replace(
+			pos - word1.size() - 1,
+			word1.size() + word2.size() + 4,
+			"pow( " + word1 + " , " + word2 + " ) "
+		)
+	);
 }
