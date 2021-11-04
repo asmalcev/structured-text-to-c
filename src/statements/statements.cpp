@@ -47,3 +47,10 @@ repeat_statement::repeat_statement(
 ) : statement(_nesting) {
 	type = statement_type::_repeat;
 }
+
+end_statement::end_statement(
+	unsigned int _nesting,
+	statement_type _type
+) : statement(_nesting) {
+	type = _type;
+}

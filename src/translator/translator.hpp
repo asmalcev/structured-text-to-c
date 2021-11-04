@@ -2,6 +2,7 @@
 
 #include <fstream>
 
+#include "../config.hpp"
 #include "../statements/statements.hpp"
 
 void translator(

@@ -1,0 +1,26 @@
+PROGRAM main
+
+VAR
+	g25  : USINT;
+	yabc : LINT;
+END_VAR
+
+FOR g25 := -2 TO 99 BY 2 DO
+	yabc := 4;
+	REPEAT
+		yabc := yabc + 4;
+
+		REPEAT
+			yabc := yabc + 1;
+		UNTIL yabc < -3
+		END_REPEAT
+
+	UNTIL yabc < 26
+	END_REPEAT
+END_FOR
+
+IF g25 <> 100 THEN
+	g25 := 100;
+END_IF
+
+END_PROGRAM

@@ -20,7 +20,14 @@ enum statement_type {
 
 	_for,
 	_while,
-	_repeat
+	_repeat,
+
+	_end_if,
+	_end_else,
+
+	_end_for,
+	_end_while,
+	_end_repeat
 };
 
 struct statement {
@@ -76,5 +83,12 @@ struct repeat_statement : public statement {
 
 	repeat_statement(
 		unsigned int _nesting
+	);
+};
+
+struct end_statement : public statement {
+	end_statement(
+		unsigned int _nesting,
+		statement_type _type
 	);
 };
