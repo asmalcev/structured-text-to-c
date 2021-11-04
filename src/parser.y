@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
 	if (argc == 3) {
 		translator(argv[2], declarations, statements, is_math_in_use);
 	} else {
-		translator("output.cpp", declarations, statements, is_math_in_use);
+		translator("output.c", declarations, statements, is_math_in_use);
 	}
 
 	fclose(yyin);

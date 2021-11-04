@@ -17,7 +17,7 @@ void translator(
 	}
 
 	if (is_math_in_use) {
-		output << "#include <cmath>" << std::endl << std::endl;
+		output << "#include <math.h>" << std::endl << std::endl;
 	}
 
 	output << "int main() {" << std::endl;
